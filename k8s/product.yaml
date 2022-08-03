@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  labels:
+    app: product-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: product-service
+  template:
+    metadata:
+      labels:
+        app: product-service
+    spec:     
+      containers:
+      - name: product-service
+        image: registry.cn-qingdao.aliyuncs.com/my_spring_demo/product-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8010
+          name: web
+        env:
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","curl -X PUT http://eureka.default.svc.cluster.local:8888/eureka/apps/PRODUCT-SERVICE/${MY_POD_NAME}:product-service:8010/status?value=OUT_OF_SERVICE"]

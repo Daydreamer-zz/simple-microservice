@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stock-service
+  labels:
+    app: stock-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stock-service
+  template:
+    metadata:
+      labels:
+        app: stock-service
+    spec: 
+      containers:
+      - name: stock-service
+        image: registry.cn-qingdao.aliyuncs.com/my_spring_demo/stock-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8030
+          name: web
+        env:
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","curl -X PUT http://eureka.default.svc.cluster.local:8888/eureka/apps/STOCK-SERVICE/${MY_POD_NAME}:stock-service:8030/status?value=OUT_OF_SERVICE"]
