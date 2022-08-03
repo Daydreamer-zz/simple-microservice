@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-service
+  labels:
+    app: gateway-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway-service
+  template:
+    metadata:
+      labels:
+        app: gateway-service
+    spec:
+      initContainers:
+        - name: sidecar
+          image: apache/skywalking-java-agent:8.8.0-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["cp", "-r", "/skywalking/agent", "/sidecar"]
+          volumeMounts:
+            - name: sidecar
+              mountPath: /sidecar
+      containers:
+      - name: gateway-service
+        image: registry.cn-qingdao.aliyuncs.com/my_spring_demo/gateway-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 9999
+          name: web
+        env:
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: JAVA_OPTS
+            value: -javaagent:/sidecar/agent/skywalking-agent.jar
+          - name: SW_AGENT_COLLECTOR_BACKEND_SERVICES
+            value: skywalking-oap.skywalking:11800
+          - name: SW_AGENT_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","curl -X PUT http://eureka.default.svc.cluster.local:8888/eureka/apps/GATEWAY-SERVICE/${MY_POD_NAME}:gateway-service:9999/status?value=OUT_OF_SERVICE"]
+        volumeMounts:
+          - name: sidecar
+            mountPath: /sidecar
+      volumes:
+        - name: sidecar
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 9999
+      targetPort: 9999
+  selector:
+    app: gateway-service
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway-service
+spec:
+  rules:
+    - host: api.k8s.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway-service
+                port:
+                  number: 9999

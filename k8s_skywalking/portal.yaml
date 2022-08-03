@@ -1,0 +1,85 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal  
+spec:
+  rules:
+    - host: portal.k8s.local
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service: 
+              name: portal-service
+              port: 
+                number: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal-service
+spec:
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: portal-service
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-service
+  labels:
+    app: portal-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: portal-service
+  template:
+    metadata:
+      labels:
+        app: portal-service
+    spec:
+      initContainers:
+        - name: sidecar
+          image: apache/skywalking-java-agent:8.8.0-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["cp", "-r", "/skywalking/agent", "/sidecar"]
+          volumeMounts:
+            - name: sidecar
+              mountPath: /sidecar
+      containers:
+      - name: portal-service
+        image: registry.cn-qingdao.aliyuncs.com/my_spring_demo/portal-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: web
+        env:
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: JAVA_OPTS
+            value: -javaagent:/sidecar/agent/skywalking-agent.jar
+          - name: SW_AGENT_COLLECTOR_BACKEND_SERVICES
+            value: skywalking-oap.skywalking:11800
+          - name: SW_AGENT_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh","-c","curl -X PUT http://eureka.default.svc.cluster.local:8888/eureka/apps/PORTAL-SERVICE/${MY_POD_NAME}:portal-service:8080/status?value=OUT_OF_SERVICE"]
+        volumeMounts:
+          - name: sidecar
+            mountPath: /sidecar
+      volumes:
+        - name: sidecar
+          emptyDir: {}
+

@@ -1,0 +1,100 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: eureka
+spec:
+  selector:
+    matchLabels:
+      app: eureka
+  serviceName: eureka-headless
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: eureka
+    spec:
+      initContainers:
+        - name: sidecar
+          image: apache/skywalking-java-agent:8.8.0-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["cp", "-r", "/skywalking/agent", "/sidecar"]
+          volumeMounts:
+            - name: sidecar
+              mountPath: /sidecar
+      containers:
+      - name: eureka
+        image: registry.cn-qingdao.aliyuncs.com/my_spring_demo/eureka-service
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8888
+          name: web
+        env:
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: JAVA_OPTS
+            value: -javaagent:/sidecar/agent/skywalking-agent.jar
+          - name: SW_AGENT_COLLECTOR_BACKEND_SERVICES
+            value: skywalking-oap.skywalking:11800
+          - name: SW_AGENT_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['app']
+        readinessProbe:
+          tcpSocket:
+            port: 8888
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 8888
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        volumeMounts:
+          - name: sidecar
+            mountPath: /sidecar
+      volumes:
+        - name: sidecar
+          emptyDir: {}
+          
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka-headless
+spec:
+  clusterIP: None
+  ports:
+  - port: 8888
+    name: eureka
+  selector:
+    app: eureka
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+spec:
+  ports:
+  - port: 8888
+    name: eureka
+  selector:
+    app: eureka
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eureka 
+spec:
+  rules:
+    - host: eureka.k8s.local
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service: 
+              name: eureka
+              port: 
+                number: 8888
