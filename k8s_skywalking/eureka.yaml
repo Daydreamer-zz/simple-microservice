@@ -33,6 +33,10 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
           - name: JAVA_OPTS
             value: -javaagent:/sidecar/agent/skywalking-agent.jar
           - name: SW_AGENT_COLLECTOR_BACKEND_SERVICES
