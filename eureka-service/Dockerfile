@@ -14,4 +14,4 @@ EXPOSE 8888
 
 ENTRYPOINT ["/sbin/tini", "--"]
 
-CMD java -Deureka.instance.hostname=${MY_POD_NAME}.eureka.default ${JAVA_ARGS} ${JAVA_OPTS} -jar /eureka-service.jar
+CMD java -Deureka.instance.hostname=${MY_POD_NAME}.eureka-headless.default.svc.cluster.local ${JAVA_ARGS} ${JAVA_OPTS} -jar /eureka-service.jar
