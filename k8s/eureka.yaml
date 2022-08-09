@@ -7,6 +7,7 @@ spec:
     matchLabels:
       app: eureka
   serviceName: eureka-headless
+  podManagementPolicy: Parallel
   replicas: 3
   template:
     metadata:
